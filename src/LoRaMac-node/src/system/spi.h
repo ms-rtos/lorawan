@@ -33,22 +33,29 @@ extern "C"
 /*!
  * SPI peripheral ID
  */
+#ifndef __MS_RTOS__
 typedef enum
 {
     SPI_1,
     SPI_2,
 }SpiId_t;
-
+#else
+typedef int SpiId_t;
+#endif
 /*!
  * SPI object type definition
  */
 typedef struct Spi_s
 {
+#ifndef __MS_RTOS__
     SpiId_t SpiId;
     Gpio_t Mosi;
     Gpio_t Miso;
     Gpio_t Sclk;
     Gpio_t Nss;
+#else
+    int    fd;
+#endif
 }Spi_t;
 
 /*!
@@ -63,8 +70,11 @@ typedef struct Spi_s
  * \param [IN] sclk SPI SCLK pin name to be used
  * \param [IN] nss  SPI NSS pin name to be used
  */
+#ifndef __MS_RTOS__
 void SpiInit( Spi_t *obj, SpiId_t spiId, PinNames mosi, PinNames miso, PinNames sclk, PinNames nss );
-
+#else
+void SpiInit( Spi_t *obj, SpiId_t spiId, const char *dev_name );
+#endif
 /*!
  * \brief De-initializes the SPI object and MCU peripheral
  *
@@ -100,7 +110,12 @@ void SpiFrequency( Spi_t *obj, uint32_t hz );
  * \param [IN] outData Byte to be sent
  * \retval inData      Received byte.
  */
+
+#ifndef __MS_RTOS__
 uint16_t SpiInOut( Spi_t *obj, uint16_t outData );
+#else
+uint16_t SpiInOut( Spi_t *obj, const ms_spi_msg_t *msg, int n_msg );
+#endif
 
 #ifdef __cplusplus
 }

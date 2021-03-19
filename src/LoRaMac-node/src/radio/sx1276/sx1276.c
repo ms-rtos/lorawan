@@ -31,6 +31,9 @@
 #include "sx1276.h"
 #include "sx1276-board.h"
 
+#ifdef __MS_RTOS__
+#include "ms_drv_spi.h"
+#endif
 /*
  * Local types definition
  */
@@ -1250,6 +1253,7 @@ uint8_t SX1276Read( uint32_t addr )
 
 void SX1276WriteBuffer( uint32_t addr, uint8_t *buffer, uint8_t size )
 {
+#ifndef __MS_RTOS__
     uint8_t i;
 
     //NSS = 0;
@@ -1263,10 +1267,26 @@ void SX1276WriteBuffer( uint32_t addr, uint8_t *buffer, uint8_t size )
 
     //NSS = 1;
     GpioWrite( &SX1276.Spi.Nss, 1 );
+#else
+    ms_spi_msg_t msgs[2];
+    uint8_t      data = addr | 0x80;
+	
+    bzero(msgs, sizeof(msgs));
+    msgs[0].flags  = MS_SPI_M_BEGIN | MS_SPI_M_WRITE | MS_SPI_M_RX_FIX;
+    msgs[0].tx_buf = &data;
+    msgs[0].len    = 1;
+
+    msgs[1].flags  =  MS_SPI_M_END | MS_SPI_M_WRITE | MS_SPI_M_RX_FIX;
+    msgs[1].tx_buf = buffer;
+    msgs[1].len    = size;
+
+    SpiInOut(&SX1276.Spi, msgs, 2);
+#endif
 }
 
 void SX1276ReadBuffer( uint32_t addr, uint8_t *buffer, uint8_t size )
 {
+#ifndef __MS_RTOS__
     uint8_t i;
 
     //NSS = 0;
@@ -1281,6 +1301,21 @@ void SX1276ReadBuffer( uint32_t addr, uint8_t *buffer, uint8_t size )
 
     //NSS = 1;
     GpioWrite( &SX1276.Spi.Nss, 1 );
+#else
+    ms_spi_msg_t msgs[2];
+    uint8_t      data = addr & 0x7F;
+	
+    bzero(msgs, sizeof(msgs));
+    msgs[0].flags  = MS_SPI_M_BEGIN | MS_SPI_M_WRITE | MS_SPI_M_RX_FIX;
+    msgs[0].tx_buf = &data;
+    msgs[0].len    = 1;
+
+    msgs[1].flags  = MS_SPI_M_END | MS_SPI_M_READ | MS_SPI_M_TX_FIX;
+    msgs[1].rx_buf = buffer;
+    msgs[1].len    = size;
+
+    SpiInOut(&SX1276.Spi, msgs, 2);
+#endif
 }
 
 static void SX1276WriteFifo( uint8_t *buffer, uint8_t size )
@@ -1806,7 +1841,11 @@ static void SX1276OnDio2Irq( void* context )
             {
             case MODEM_FSK:
                 // Checks if DIO4 is connected. If it is not PreambleDetected is set to true.
+#ifndef __MS_RTOS__
                 if( SX1276.DIO4.port == NULL )
+#else
+                if (SX1276.DIO4.fd < 0)
+#endif
                 {
                     SX1276.Settings.FskPacketHandler.PreambleDetected = true;
                 }

@@ -36,9 +36,14 @@ extern "C"
 #include "pinName-board.h"
 #include "pinName-ioe.h"
 
+#ifdef __MS_RTOS__
+#include <ms_rtos.h>
+#endif
+
 /*!
  * Board GPIO pin names
  */
+#ifndef __MS_RTOS__
 typedef enum
 {
     MCU_PINS,
@@ -47,6 +52,10 @@ typedef enum
     // Not connected
     NC = (int)0xFFFFFFFF
 }PinNames;
+#else
+typedef const char *PinNames;
+#define NC          MS_NULL
+#endif
 
 /*!
  * Operation Mode for the GPIO
@@ -111,11 +120,16 @@ typedef void( GpioIrqHandler )( void* context );
  */
 typedef struct
 {
+#ifdef __MS_RTOS__
+    int fd;
+    ms_list_head_t node;
+#else
     PinNames  pin;
     uint16_t pinIndex;
     void *port;
     uint16_t portIndex;
     PinTypes pull;
+#endif
     void* Context;
     GpioIrqHandler* IrqHandler;
 }Gpio_t;
@@ -183,6 +197,10 @@ void GpioToggle( Gpio_t *obj );
  * \retval value   Current GPIO input value
  */
 uint32_t GpioRead( Gpio_t *obj );
+
+#ifdef __MS_RTOS__
+void GpioDeInit( Gpio_t *obj );
+#endif
 
 #ifdef __cplusplus
 }

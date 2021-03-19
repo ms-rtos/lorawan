@@ -141,6 +141,7 @@ void memset1( uint8_t *dst, uint8_t value, uint16_t size );
  */
 int8_t Nibble2HexChar( uint8_t a );
 
+#ifndef __MS_RTOS__
 /*!
  * Begins critical section
  */
@@ -150,6 +151,19 @@ int8_t Nibble2HexChar( uint8_t a );
  * Ends critical section
  */
 #define CRITICAL_SECTION_END( ) BoardCriticalSectionEnd( &mask )
+#else
+#include <ms_rtos.h>
+extern ms_handle_t lora_mutex_id;
+/*!
+ * Begins critical section
+ */
+#define CRITICAL_SECTION_BEGIN( ) ms_mutex_lock(lora_mutex_id, MS_TIMEOUT_FOREVER)
+
+/*!
+ * Ends critical section
+ */
+#define CRITICAL_SECTION_END( ) ms_mutex_unlock(lora_mutex_id);
+#endif
 
 /*
  * ============================================================================
