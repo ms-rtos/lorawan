@@ -31,11 +31,9 @@
 #include "Commissioning.h"
 #include "NvmCtxMgmt.h"
 
-#ifdef __MS_RTOS__
 #include "ms_lora_config.h"
 #include "ms_lora_porting.h"
 #include <ms_rtos.h>
-#endif
 
 #ifndef ACTIVE_REGION
 
@@ -134,23 +132,6 @@ static uint32_t TxDutyCycleTime;
 static TimerEvent_t TxNextPacketTimer;
 
 /*!
- * Specifies the state of the application LED
- */
-static bool AppLedStateOn = false;
-
-#ifndef __MS_RTOS__
-/*!
- * Timer to handle the state of LED1
- */
-static TimerEvent_t Led1Timer;
-
-/*!
- * Timer to handle the state of LED3
- */
-static TimerEvent_t Led3Timer;
-#endif
-
-/*!
  * Indicates if a new packet can be sent
  */
 static bool NextTx = true;
@@ -161,6 +142,11 @@ static bool NextTx = true;
  * \warning If variable is equal to 0 then the MCU can be set in low power mode
  */
 static uint8_t IsMacProcessPending = 0;
+
+/*!
+ *  temperature value
+ */
+static float temperatureValue = 25.52;
 
 /*!
  * Device states
@@ -219,15 +205,6 @@ LoRaMacHandlerAppData_t AppData =
     .BufferSize = 0,
     .Port = 0
 };
-
-#ifndef __MS_RTOS__
-/*!
- * LED GPIO pins objects
- */
-extern Gpio_t Led1; // Tx
-extern Gpio_t Led3; // Rx
-extern Gpio_t Led4; // App
-#endif
 
 /*!
  * MAC status strings
@@ -351,17 +328,8 @@ static void PrepareTxFrame( uint8_t port )
     {
     case 2:
         {
-#ifndef __MS_RTOS__
-            AppDataSizeBackup = AppDataSize = 1;
-            AppDataBuffer[0] = AppLedStateOn;
-#else
-            int i;
-            AppDataSizeBackup = AppDataSize = 11;
-            for ( i = 0; i < AppDataSize - 1; i++) {
-                AppDataBuffer[i] = '0' + i;
-            }
-            AppDataBuffer[i] = 0;
-#endif
+            AppDataSizeBackup = AppDataSize = sizeof(temperatureValue);
+            memcpy1(AppDataBuffer, (uint8_t *)&temperatureValue, AppDataSize);
         }
         break;
     case 224:
@@ -484,28 +452,6 @@ static void OnTxNextPacketTimerEvent( void* context )
     }
 }
 
-#ifndef __MS_RTOS__
-/*!
- * \brief Function executed on Led 1 Timeout event
- */
-static void OnLed1TimerEvent( void* context )
-{
-    TimerStop( &Led1Timer );
-    // Switch LED 1 OFF
-    GpioWrite( &Led1, 0 );
-}
-
-/*!
- * \brief Function executed on Led 3 Timeout event
- */
-static void OnLed3TimerEvent( void* context )
-{
-    TimerStop( &Led3Timer );
-    // Switch LED 3 OFF
-    GpioWrite( &Led3, 0 );
-}
-#endif
-
 /*!
  * \brief   MCPS-Confirm event function
  *
@@ -544,12 +490,6 @@ static void McpsConfirm( McpsConfirm_t *mcpsConfirm )
             default:
                 break;
         }
-
-#ifndef __MS_RTOS__
-        // Switch LED 1 ON
-        GpioWrite( &Led1, 1 );
-        TimerStart( &Led1Timer );
-#endif
     }
     MibRequestConfirm_t mibGet;
     MibRequestConfirm_t mibReq;
@@ -683,10 +623,7 @@ static void McpsIndication( McpsIndication_t *mcpsIndication )
         case 2:
             if( mcpsIndication->BufferSize == 1 )
             {
-                AppLedStateOn = mcpsIndication->Buffer[0] & 0x01;
-#ifndef __MS_RTOS__
-                GpioWrite( &Led4, ( ( AppLedStateOn & 0x01 ) != 0 ) ? 1 : 0 );
-#endif
+
             }
             break;
         case 224:
@@ -835,12 +772,6 @@ static void McpsIndication( McpsIndication_t *mcpsIndication )
         }
     }
 
-#ifndef __MS_RTOS__
-    // Switch LED 3 ON for each received downlink
-    GpioWrite( &Led3, 1 );
-    TimerStart( &Led3Timer );
-#endif
-
     const char *slotStrings[] = { "1", "2", "C", "C Multicast", "B Ping-Slot", "B Multicast Ping-Slot" };
 
     printf( "\n###### ===== DOWNLINK FRAME %lu ==== ######\n", mcpsIndication->DownLinkCounter );
@@ -960,28 +891,18 @@ void OnMacProcessNotify( void )
 /**
  * Main application entry point.
  */
-#ifndef __MS_RTOS__
-int main( void )
-#else
 int main (int argc, char **argv)
-#endif
 {
     LoRaMacPrimitives_t macPrimitives;
     LoRaMacCallback_t macCallbacks;
     MibRequestConfirm_t mibReq;
     LoRaMacStatus_t status;
 
-#ifndef __MS_RTOS__
-    uint8_t devEui[8] = { 0 };  // Automatically filed from secure-element
-    uint8_t joinEui[8] = { 0 }; // Automatically filed from secure-element
-    uint8_t sePin[4] = { 0 };   // Automatically filed from secure-element
-#else
     uint8_t  devEui[8]       = LORA_CFG_DEV_EUI;
     uint8_t  joinEui[8]      = LORA_CFG_JOIN_EUI;
     uint8_t  appKey[16]      = LORA_CFG_APP_KEY;
     uint8_t  sePin[4]        = LORA_CFG_SE_PIN;
     uint16_t ChannelsMask[6] = LORA_CFG_CHAN_MASK;
-#endif
 
     BoardInitMcu( );
     BoardInitPeriph( );
@@ -1031,21 +952,6 @@ int main (int argc, char **argv)
                 }
                 else
                 {
-
-#ifndef __MS_RTOS__
-                    // Read secure-element DEV_EUI, JOI_EUI and SE_PIN values.
-                    mibReq.Type = MIB_DEV_EUI;
-                    LoRaMacMibGetRequestConfirm( &mibReq );
-                    memcpy1( devEui, mibReq.Param.DevEui, 8 );
-
-                    mibReq.Type = MIB_JOIN_EUI;
-                    LoRaMacMibGetRequestConfirm( &mibReq );
-                    memcpy1( joinEui, mibReq.Param.JoinEui, 8 );
-
-                    mibReq.Type = MIB_SE_PIN;
-                    LoRaMacMibGetRequestConfirm( &mibReq );
-                    memcpy1( sePin, mibReq.Param.SePin, 4 );
-#else
                     // Set DEV_EUI, JOI_EUI, APP_KEY, SE_PIN, CHANNELS_MASK.
                     mibReq.Type = MIB_DEV_EUI;
                     mibReq.Param.DevEui = devEui;
@@ -1070,7 +976,6 @@ int main (int argc, char **argv)
                     mibReq.Type = MIB_CHANNELS_MASK;
                     mibReq.Param.ChannelsMask = ChannelsMask;
                     LoRaMacMibSetRequestConfirm( &mibReq );
-#endif
 
 #if( OVER_THE_AIR_ACTIVATION == 0 )
                     // Tell the MAC layer which network server version are we connecting too.
@@ -1102,14 +1007,6 @@ int main (int argc, char **argv)
             case DEVICE_STATE_START:
             {
                 TimerInit( &TxNextPacketTimer, OnTxNextPacketTimerEvent );
-
-#ifndef __MS_RTOS__
-                TimerInit( &Led1Timer, OnLed1TimerEvent );
-                TimerSetValue( &Led1Timer, 25 );
-
-                TimerInit( &Led3Timer, OnLed3TimerEvent );
-                TimerSetValue( &Led3Timer, 25 );
-#endif
 
                 mibReq.Type = MIB_PUBLIC_NETWORK;
                 mibReq.Param.EnablePublicNetwork = LORAWAN_PUBLIC_NETWORK;

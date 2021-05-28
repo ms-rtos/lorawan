@@ -236,7 +236,7 @@ void BoardInitMcu( void )
 
     lora_os_init();
 
-    fd = ms_io_open("/dev/spi1", O_RDWR, 0666);
+    fd = ms_io_open("/dev/spi2", O_RDWR, 0666);
     return_if_fail(fd >= 0);
 
     SpiInit(&SX1276.Spi, fd, "/dev/lora");
