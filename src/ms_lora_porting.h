@@ -17,22 +17,22 @@
 extern "C" {
 #endif
 
-#define return_if_fail(p)                                       \
-    if (!(p)) {                                                 \
-        ms_printf("%s:%d " #p "\n", __FUNCTION__, __LINE__); \
-        return;                                                 \
+#define return_if_fail(p)                               \
+    if (!(p)) {                                         \
+        ms_printf("%s:%d " #p "\n", __func__, __LINE__);\
+        return;                                         \
     }
 
-#define return_value_if_fail(p, value)                          \
-    if (!(p)) {                                                 \
-        ms_printf("%s:%d " #p "\n", __FUNCTION__, __LINE__);    \
-        return (value);                                         \
+#define return_value_if_fail(p, value)                  \
+    if (!(p)) {                                         \
+        ms_printf("%s:%d " #p "\n", __func__, __LINE__);\
+        return (value);                                 \
     }
 
-#define goto_error_if_fail(p, err)                              \
-    if (!(p)) {                                                 \
-        ms_printf("%s:%d " #p "\n", __FUNCTION__, __LINE__);    \
-        goto err;                                               \
+#define goto_error_if_fail(p, err)                      \
+    if (!(p)) {                                         \
+        ms_printf("%s:%d " #p "\n", __func__, __LINE__);\
+        goto err;                                       \
     }
 
 /*!
